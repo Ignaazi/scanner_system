@@ -11,7 +11,7 @@ $user_login = $_SESSION['username'];
 $query_user = mysqli_query($conn, "SELECT * FROM users WHERE username = '$user_login'");
 $data_user = mysqli_fetch_assoc($query_user);
 
-// 1. FUNGSI CREATE
+// 1. FUNGSI CREATE (Update: Menggunakan Session Notifikasi)
 if(isset($_POST['simpan'])){
     $nama     = mysqli_real_escape_string($conn, $_POST['nama_karyawan']);
     $username = mysqli_real_escape_string($conn, $_POST['username']);
@@ -26,10 +26,14 @@ if(isset($_POST['simpan'])){
     } else { $foto_baru = "default.png"; }
 
     $query = mysqli_query($conn, "INSERT INTO users (username, nama_karyawan, password, role, foto) VALUES ('$username', '$nama', '$password', '$role', '$foto_baru')");
-    if($query) header("location:users.php?pesan=tambah_berhasil");
+    if($query) {
+        $_SESSION['sukses'] = "Data Karyawan berhasil ditambahkan!";
+        header("location:users.php");
+        exit();
+    }
 }
 
-// 2. FUNGSI UPDATE
+// 2. FUNGSI UPDATE (Update: Menggunakan Session Notifikasi)
 if(isset($_POST['update'])){
     $id          = $_POST['id'];
     $nama        = mysqli_real_escape_string($conn, $_POST['nama_karyawan']);
@@ -50,14 +54,25 @@ if(isset($_POST['update'])){
     } else {
         $q = mysqli_query($conn, "UPDATE users SET username='$username_baru', nama_karyawan='$nama', role='$role' WHERE id='$id'");
     }
-    if($q) header("location:users.php?pesan=update_berhasil");
+    
+    if($q) {
+        $_SESSION['sukses'] = "Profil User berhasil diperbarui!";
+        header("location:users.php");
+        exit();
+    }
 }
 
-// 3. FUNGSI DELETE
+// 3. FUNGSI DELETE (Update: Menggunakan Session Notifikasi)
 if(isset($_GET['hapus'])){
     $id = $_GET['hapus'];
-    mysqli_query($conn, "DELETE FROM users WHERE id='$id'");
-    header("location:users.php?pesan=hapus_berhasil");
+    $delete = mysqli_query($conn, "DELETE FROM users WHERE id='$id'");
+    if($delete) {
+        $_SESSION['sukses'] = "User telah dihapus dari sistem.";
+    } else {
+        $_SESSION['error'] = "Gagal menghapus user!";
+    }
+    header("location:users.php");
+    exit();
 }
 ?>
 
@@ -308,7 +323,6 @@ if(isset($_GET['hapus'])){
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    // --- DARK MODE LOGIC ---
     const toggleBtn = document.getElementById('darkModeToggle');
     const themeIcon = document.getElementById('themeIcon');
     const body = document.body;
@@ -330,6 +344,11 @@ if(isset($_GET['hapus'])){
         }
     });
 </script>
-<?php include 'notifikasi.php'; ?>
+
+<?php 
+    if (file_exists('../notifikasi.php')) {
+        include '../notifikasi.php'; 
+    }
+?>
 </body>
 </html>

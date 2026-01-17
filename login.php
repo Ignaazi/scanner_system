@@ -39,9 +39,13 @@ if (isset($_POST['login'])) {
 <html lang="id" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Login | SIIX Scanner System</title>
     
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#f97316">
+    <link rel="apple-touch-icon" href="assets/img/profile/iconapk.png">
+
     <script>
         (function() {
             const savedTheme = localStorage.getItem('theme') || 'light';
@@ -102,15 +106,7 @@ if (isset($_POST['login'])) {
         }
 
         .brand-logo { text-align: center; margin-bottom: 40px; }
-        .brand-logo h2 { 
-            font-weight: 800; 
-            font-size: 2rem;
-            letter-spacing: -1px;
-            margin: 0; 
-            background: linear-gradient(45deg, var(--text-main), var(--accent));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
+        
 
         .form-label { 
             font-size: 12px; 
@@ -235,6 +231,15 @@ if (isset($_POST['login'])) {
     </div>
 
     <script>
+        // REGISTRASI SERVICE WORKER PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('PWA Ready'))
+                    .catch(err => console.log('PWA Failed', err));
+            });
+        }
+
         const themeToggle = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
         const html = document.documentElement;

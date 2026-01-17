@@ -1,0 +1,23 @@
+{
+    "name": "SIIX Scanner System",
+    "short_name": "SIIX-Scan",
+    "description": "System Scanner Produksi SIIX",
+    "start_url": "index.php",
+    "display": "standalone",
+    "background_color": "#020617",
+    "theme_color": "#f97316",
+    "icons": [
+      {
+        "src": "assets/img/profile/iconapk.png",
+        "sizes": "192x192",
+        "type": "image/png",
+        "purpose": "any maskable"
+      },
+      {
+        "src": "assets/img/profile/iconapk.png",
+        "sizes": "512x512",
+        "type": "image/png",
+        "purpose": "any maskable"
+      }
+    ]
+}
