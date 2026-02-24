@@ -10,7 +10,7 @@ $user_login = $_SESSION['username'];
 $query_user = mysqli_query($conn, "SELECT * FROM users WHERE username = '$user_login'");
 $data_user = mysqli_fetch_assoc($query_user);
 
-// --- LOGIKA FILTER ASLI ANDA (TIDAK DIUBAH) ---
+// --- LOGIKA FILTER ---
 $where_clauses = [];
 if(isset($_GET['filter_date']) && !empty($_GET['filter_date'])) {
     $f_date = mysqli_real_escape_string($conn, $_GET['filter_date']);
@@ -29,6 +29,33 @@ if(isset($_GET['search']) && !empty($_GET['search'])) {
     $where_clauses[] = "(nama_karyawan LIKE '%$s%' OR sap_code LIKE '%$s%' OR model_name LIKE '%$s%')";
 }
 $where_sql = count($where_clauses) > 0 ? " WHERE " . implode(" AND ", $where_clauses) : "";
+
+// --- LOGIKA EXPORT CSV ---
+if (isset($_GET['export']) && $_GET['export'] == 'csv') {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename=History_Scanner_'.date('Ymd_His').'.csv');
+    $output = fopen('php://output', 'w');
+    fputcsv($output, array('Tanggal', 'Username', 'Nama Karyawan', 'Model', 'SAP Code', 'CLL', 'Size', 'Type', 'Pitch', 'Cycle', 'Status Diff'));
+    
+    $query_export = mysqli_query($conn, "SELECT * FROM scanner_history $where_sql ORDER BY tanggal DESC");
+    while ($row = mysqli_fetch_assoc($query_export)) {
+        fputcsv($output, array(
+            $row['tanggal'], 
+            $row['username'], 
+            $row['nama_karyawan'], 
+            $row['model_name'], 
+            $row['sap_code'], 
+            $row['cll'], 
+            $row['size'], 
+            $row['type'], 
+            $row['pitch'], 
+            $row['cycle'],
+            ($row['is_diff'] == 1 ? 'DIFF/NG' : 'MATCH')
+        ));
+    }
+    fclose($output);
+    exit;
+}
 ?>
 
 <!DOCTYPE html>
@@ -51,33 +78,17 @@ $where_sql = count($where_clauses) > 0 ? " WHERE " . implode(" AND ", $where_cla
     
     <style>
         :root {
-            --bg-body: #f8fafc;
-            --bg-sidebar: #ffffff;
-            --bg-card: #ffffff;
-            --text-main: #1e293b;
-            --text-muted: #64748b;
-            --sidebar-text: #475569;
-            --sidebar-hover: #f1f5f9;
-            --nav-border: #e2e8f0;
-            --accent: #f97316;
-            --sidebar-header-text: #1e293b;
+            --bg-body: #f8fafc; --bg-sidebar: #ffffff; --bg-card: #ffffff; --text-main: #1e293b;
+            --text-muted: #64748b; --sidebar-text: #475569; --sidebar-hover: #f1f5f9;
+            --nav-border: #e2e8f0; --accent: #f97316; --sidebar-header-text: #1e293b;
         }
-
         [data-bs-theme="dark"] {
-            --bg-body: #020617;
-            --bg-sidebar: #0f172a;
-            --bg-card: #1e293b;
-            --text-main: #f1f5f9;
-            --text-muted: #94a3b8;
-            --sidebar-text: #94a3b8;
-            --sidebar-hover: rgba(255, 255, 255, 0.05);
-            --nav-border: #334155;
-            --sidebar-header-text: #ffffff;
+            --bg-body: #020617; --bg-sidebar: #0f172a; --bg-card: #1e293b; --text-main: #f1f5f9;
+            --text-muted: #94a3b8; --sidebar-text: #94a3b8; --sidebar-hover: rgba(255, 255, 255, 0.05);
+            --nav-border: #334155; --sidebar-header-text: #ffffff;
         }
-
         body { background-color: var(--bg-body); color: var(--text-main); font-family: 'Inter', sans-serif; transition: background-color 0.3s; }
         
-        /* SIDEBAR (MENGIKUTI DASHBOARD TERBARU) */
         #sidebar { width: 260px; height: 100vh; position: fixed; background: var(--bg-sidebar); border-right: 1px solid var(--nav-border); z-index: 1000; display: flex; flex-direction: column; }
         .sidebar-header { padding: 30px 25px; text-align: center; border-bottom: 1px solid var(--nav-border); }
         .sidebar-header h4 { color: var(--sidebar-header-text); font-weight: 800; letter-spacing: 2px; }
@@ -93,7 +104,6 @@ $where_sql = count($where_clauses) > 0 ? " WHERE " . implode(" AND ", $where_cla
         .top-nav { background: var(--bg-card); padding: 15px 30px; border-bottom: 1px solid var(--nav-border); position: sticky; top: 0; z-index: 999; }
         .theme-toggle { cursor: pointer; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--nav-border); }
 
-        /* --- KONTEN ASLI ANDA (STYLE TIDAK DIUBAH) --- */
         .unified-card { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--nav-border); box-shadow: 0 10px 30px rgba(0,0,0,0.08); overflow: hidden; }
         .unified-header { padding: 25px; border-bottom: 2px solid var(--nav-border); }
         .btn-3d-csv { background: #10b981; color: white; border: none; border-bottom: 4px solid #059669; transition: 0.1s; border-radius: 6px; }
@@ -116,6 +126,7 @@ $where_sql = count($where_clauses) > 0 ? " WHERE " . implode(" AND ", $where_cla
 
         .cycle-badge { font-weight: 800; font-size: 10px; padding: 6px 14px; border-radius: 4px; border: 1px solid; display: inline-block; min-width: 90px; }
         .c-1 { background: rgba(254, 252, 232, 0.2); color: #854d0e; border-color: #fde047; } 
+        .c-3 { background: rgba(220, 252, 231, 0.2); color: #166534; border-color: #86efac; }
         .c-completed { background: var(--text-main); color: var(--bg-card); }
 
         @media print { #sidebar, .top-nav, .no-print { display: none !important; } .main-content { margin-left: 0 !important; width: 100% !important; } }
@@ -173,7 +184,7 @@ $where_sql = count($where_clauses) > 0 ? " WHERE " . implode(" AND ", $where_cla
                         <p class="text-muted small mb-0">Laporan aktivitas sinkronisasi data produksi.</p>
                     </div>
                     <div class="d-flex gap-2">
-                        <a href="?export=csv" class="btn btn-3d-csv btn-sm fw-bold px-3"><i class="fas fa-file-excel me-2"></i>EXPORT CSV</a>
+                        <a href="?export=csv&search=<?= $_GET['search']??'' ?>&filter_date=<?= $_GET['filter_date']??'' ?>" class="btn btn-3d-csv btn-sm fw-bold px-3"><i class="fas fa-file-excel me-2"></i>EXPORT CSV</a>
                         <button onclick="window.print()" class="btn btn-3d-print btn-sm fw-bold px-3"><i class="fas fa-print me-2"></i>PRINT PDF</button>
                     </div>
                 </div>
@@ -220,14 +231,18 @@ $where_sql = count($where_clauses) > 0 ? " WHERE " . implode(" AND ", $where_cla
                     </thead>
                     <tbody>
                         <?php
-                        $sql = "SELECT * FROM scanner_history $where_sql ORDER BY tanggal DESC LIMIT 500";
+                        $sql = "SELECT * FROM scanner_history $where_sql ORDER BY tanggal DESC LIMIT 1000";
                         $history = mysqli_query($conn, $sql);
                         while($row = mysqli_fetch_assoc($history)): 
                             $c_val = $row['cycle'] ?? 0;
-                            if($c_val >= 4) { $c_class = "c-completed"; $label = "FINISHED"; }
-                            else { $c_class = "c-1"; $label = "CHECK " . $c_val; }
+                            if($c_val == 3) { $c_class = "c-3"; $label = "CYCLE 3"; }
+                            elseif($c_val >= 4) { $c_class = "c-completed"; $label = "FINISHED"; }
+                            else { $c_class = "c-1"; $label = "CYCLE " . $c_val; }
+                            
+                            // Tambah tanda NG jika is_diff = 1
+                            $diff_style = ($row['is_diff'] == 1) ? "background: rgba(239, 68, 68, 0.1);" : "";
                         ?>
-                        <tr>
+                        <tr style="<?= $diff_style ?>">
                             <td>
                                 <span class="text-date-top"><?= date('d/m/Y', strtotime($row['tanggal'])) ?></span>
                                 <span class="text-time"><?= date('H:i:s', strtotime($row['tanggal'])) ?></span>
@@ -242,21 +257,25 @@ $where_sql = count($where_clauses) > 0 ? " WHERE " . implode(" AND ", $where_cla
                             <td><span class="text-data"><?= $row['size'] ?></span></td>
                             <td><span class="text-data text-uppercase"><?= $row['type'] ?></span></td>
                             <td><span class="text-data"><?= $row['pitch'] ?></span></td>
-                            <td><span class="cycle-badge <?= $c_class ?>"><?= $label ?></span></td>
+                            <td>
+                                <span class="cycle-badge <?= $c_class ?>"><?= $label ?></span>
+                                <?php if($row['is_diff'] == 1): ?>
+                                    <br><small class="text-danger fw-bold" style="font-size: 9px;">!! DATA NG/DIFF !!</small>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                         <?php endwhile; ?>
                     </tbody>
                 </table>
             </div>
         </div>
-        </div>
+    </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
 <script>
-    // THEME TOGGLE SCRIPT
     const toggleBtn = document.getElementById('darkModeToggle');
     const themeIcon = document.getElementById('themeIcon');
     
@@ -280,6 +299,9 @@ $where_sql = count($where_clauses) > 0 ? " WHERE " . implode(" AND ", $where_cla
             "order": [[ 0, "desc" ]],
             "pageLength": 50,
             "dom": '<"p-3 d-flex justify-content-between align-items-center"l>t<"p-3 d-flex justify-content-between align-items-center"ip>',
+            "language": {
+                "emptyTable": "Tidak ada data scan yang ditemukan (Cek simpan_history.php)"
+            }
         });
     });
 </script>

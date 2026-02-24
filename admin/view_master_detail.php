@@ -75,7 +75,6 @@ $data_user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE u
             overflow-x: hidden; 
         }
         
-        /* --- SIDEBAR (Sama Persis Dashboard) --- */
         #sidebar {
             width: 260px; height: 100vh; position: fixed;
             background: var(--bg-sidebar); display: flex; flex-direction: column; 
@@ -106,14 +105,12 @@ $data_user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE u
         }
         .sidebar-footer { padding: 20px; border-top: 1px solid var(--nav-border); }
 
-        /* --- CONTENT AREA --- */
         .main-content { margin-left: 260px; width: calc(100% - 260px); min-height: 100vh; transition: 0.3s; }
         .top-nav { 
             background: var(--bg-card); padding: 15px 30px; 
             border-bottom: 1px solid var(--nav-border); position: sticky; top: 0; z-index: 999; 
         }
 
-        /* BANNER & TABLES (ISI ASLI) */
         .model-banner-3d { 
             background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
             border-radius: 16px; padding: 25px 30px; margin: 25px;
@@ -130,9 +127,29 @@ $data_user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE u
             background: var(--bg-body); border: 1px solid var(--nav-border); 
             padding: 12px; font-size: 11px; text-transform: uppercase; color: var(--text-main); font-weight: 800; text-align: center;
         }
-        .table-excel tbody td { border: 1px solid var(--nav-border); padding: 12px; font-size: 13px; color: var(--text-main); text-align: center; }
+        .table-excel tbody td { border: 1px solid var(--nav-border); padding: 12px; font-size: 13px; color: var(--text-main); text-align: center; vertical-align: middle; }
         
-        /* CHAT STYLE HISTORY */
+        /* ADJUSTMENT UNTUK PLACEMENT BANYAK */
+        .placement-scroll {
+            max-height: 60px; 
+            max-width: 200px;
+            overflow-y: auto;
+            font-size: 11px;
+            padding: 5px;
+            background: rgba(0,0,0,0.03);
+            border-radius: 4px;
+            line-height: 1.4;
+            text-align: left;
+            word-wrap: break-word;
+            margin: 0 auto;
+        }
+        [data-bs-theme="dark"] .placement-scroll {
+            background: rgba(255,255,255,0.05);
+        }
+        /* Custom Scrollbar Mini */
+        .placement-scroll::-webkit-scrollbar { width: 4px; }
+        .placement-scroll::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
+
         .history-side { 
             flex: 1; min-width: 330px; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--nav-border);
             height: calc(100vh - 180px); display: flex; flex-direction: column; position: sticky; top: 100px;
@@ -153,7 +170,7 @@ $data_user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE u
         .sap-tag { background: #0f172a; color: #fff; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 12px; }
 
         @media (max-width: 768px) { #sidebar { margin-left: -260px; } .main-content { margin-left: 0; width: 100%; } }
-        @media print { .no-print { display: none !important; } .main-content { margin-left: 0; width: 100%; } }
+        @media print { .no-print { display: none !important; } .main-content { margin-left: 0; width: 100%; } .placement-scroll { max-height: none; overflow: visible; } }
     </style>
 </head>
 <body>
@@ -167,12 +184,10 @@ $data_user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE u
     <div class="sidebar-menu">
         <div class="menu-label">Utama</div>
         <a href="dashboard.php"><i class="fas fa-th-large me-3"></i> Dashboard</a>
-        
         <div class="menu-label">Manajemen Data</div>
         <a href="users.php"><i class="fas fa-user-shield me-3"></i> Data User</a>
         <a href="master_line.php"><i class="fas fa-industry me-3"></i> Master Line</a>
         <a href="master_data.php" class="active"><i class="fas fa-database me-3"></i> Master Model</a>
-        
         <div class="menu-label">Operasional</div>
         <a href="csv_mounter.php"><i class="fas fa-file-csv me-3"></i> CSV Mounter</a>
         <a href="bom_check.php"><i class="fas fa-check-double me-3"></i> Verification</a>
@@ -223,14 +238,9 @@ $data_user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE u
                         <span class="input-group-text bg-transparent border-end-0 text-muted"><i class="fas fa-search"></i></span>
                         <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Cari Part Number..." onkeyup="filterTable()">
                     </div>
-                    <select class="form-select form-select-sm w-auto" id="typeFilter" onchange="filterTable()">
-                        <option value="">All Types</option>
-                        <option value="PAPER">PAPER</option>
-                        <option value="EMBOSS">EMBOSS</option>
-                    </select>
                     <div class="ms-auto d-flex gap-2">
                         <button onclick="window.print()" class="btn btn-light btn-sm border fw-bold" style="font-size:11px; background: var(--bg-body); color: var(--text-main); border-color: var(--nav-border)!important;"><i class="fas fa-print me-1"></i>PRINT</button>
-                        <a href="export_csv.php?id=<?= $bom_id ?>" class="btn btn-success btn-sm fw-bold" style="font-size:11px;"><i class="fas fa-file-csv me-1"></i>EXPORT</a>
+                        <a href="export_csv.php?id=<?= $bom_id ?>" class="btn btn-success btn-sm fw-bold" style="font-size:11px;"><i class="fas fa-file-csv me-1"></i>EXPORT CSV</a>
                         <a href="csv_mounter.php?manage=<?= $bom_id ?>" class="btn btn-primary btn-sm fw-bold" style="font-size:11px;"><i class="fas fa-cog me-1"></i>MANAGE</a>
                     </div>
                 </div>
@@ -240,8 +250,12 @@ $data_user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE u
                         <thead>
                             <tr>
                                 <th width="50">#</th>
-                                <th onclick="sortTable(1)" style="cursor:pointer">SAP CODE <i class="fas fa-sort ms-1"></i></th>
-                                <th onclick="sortTable(2)" style="cursor:pointer">Description <i class="fas fa-sort ms-1"></i></th>
+                                <th>Machine</th>
+                                <th>Table</th>
+                                <th>Slot</th>
+                                <th onclick="sortTable(4)" style="cursor:pointer">PART NUMBER <i class="fas fa-sort ms-1"></i></th>
+                                <th onclick="sortTable(5)" style="cursor:pointer">Description <i class="fas fa-sort ms-1"></i></th>
+                                <th width="220">Placement</th>
                                 <th>Type</th>
                                 <th>Size</th>
                                 <th>Pitch</th>
@@ -250,15 +264,23 @@ $data_user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE u
                         <tbody id="tableBody">
                             <?php 
                             $n = 1;
-                            $items = mysqli_query($conn, "SELECT * FROM master_model WHERE bom_id = '$bom_id' ORDER BY id ASC");
+                            $items = mysqli_query($conn, "SELECT * FROM master_model WHERE bom_id = '$bom_id' ORDER BY machine ASC, table_no ASC, slot ASC");
                             while($it = mysqli_fetch_array($items)): 
                             ?>
                             <tr>
                                 <td class="text-muted small"><?= $n++ ?></td>
+                                <td class="fw-bold"><?= $it['machine'] ?: '-' ?></td>
+                                <td><?= $it['table_no'] ?: '-' ?></td>
+                                <td class="text-primary fw-bold"><?= $it['slot'] ?: '-' ?></td>
                                 <td><span class="sap-tag"><?= $it['sap_code'] ?></span></td>
                                 <td class="text-start px-3 fw-bold"><?= $it['feeder_name'] ?></td>
+                                <td>
+                                    <div class="placement-scroll">
+                                        <?= $it['placement'] ?: '-' ?>
+                                    </div>
+                                </td>
                                 <td><span class="badge border text-dark bg-white" style="font-size: 9px;"><?= strtoupper($it['feeder_type']) ?></span></td>
-                                <td class="fw-bold text-secondary"><?= $it['feeder_size'] ?></td>
+                                <td class="fw-bold"><?= $it['feeder_size'] ?></td>
                                 <td><span class="badge bg-danger bg-opacity-10 text-danger border-danger border-opacity-25 border"><?= $it['pitch'] ?>mm</span></td>
                             </tr>
                             <?php endwhile; ?>
@@ -290,7 +312,6 @@ $data_user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE u
 </div>
 
 <script>
-    // --- THEME LOGIC (SYNC WITH DASHBOARD) ---
     const toggleBtn = document.getElementById('darkModeToggle');
     const themeIcon = document.getElementById('themeIcon');
     const body = document.body;
@@ -312,10 +333,8 @@ $data_user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users WHERE u
         }
     });
 
-    // --- TABLE LOGIC ---
     function filterTable() {
         let input = document.getElementById("searchInput").value.toUpperCase();
-        let typeFilter = document.getElementById("typeFilter").value.toUpperCase();
         let rows = document.querySelectorAll("#tableBody tr");
         rows.forEach(row => {
             let text = row.innerText.toUpperCase();

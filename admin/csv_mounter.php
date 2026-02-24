@@ -41,7 +41,7 @@ if(isset($_POST['truncate_items'])){
     echo "<script>alert('Data berhasil dikosongkan!'); window.location='csv_mounter.php?manage=$bom_id';</script>";
 }
 
-// --- LOGIC IMPORT CSV ---
+// --- LOGIC IMPORT CSV (ADJUSTED FOR LONG PLACEMENT DATA) ---
 if(isset($_POST['import_csv'])){
     $bom_id = $_POST['bom_id'];
     $file = $_FILES['file_csv']['tmp_name'];
@@ -49,22 +49,36 @@ if(isset($_POST['import_csv'])){
         $count = 0; $row_num = 0;
         mysqli_begin_transaction($conn);
         try {
-            while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
+            while (($data = fgetcsv($handle, 4000, ";")) !== FALSE) { // Buffer dinaikkan ke 4000 untuk baris panjang
                 $row_num++;
-                if ($row_num <= 1) continue; 
-                $sap = isset($data[4]) ? trim($data[4]) : '';
-                $fn  = isset($data[5]) ? trim($data[5]) : '';
-                $t   = isset($data[9]) ? trim($data[9]) : ''; 
-                $sz  = isset($data[10]) ? trim($data[10]) : '';
-                $p   = isset($data[11]) ? trim($data[11]) : '';
+                if ($row_num <= 1) continue; // Skip Header
+
+                // Pemetaan Indeks CSV:
+                // 0:NO, 1:MACHINE, 2:TABLE, 3:SLOT, 4:FEEDER NAME, 5:PART NUMBER, 6:PLACEMENT, 7:TYPE, 8:WIDTH, 9:PITCH
+                $m   = isset($data[1]) ? trim($data[1]) : ''; 
+                $t_b = isset($data[2]) ? trim($data[2]) : ''; 
+                $sl  = isset($data[3]) ? trim($data[3]) : ''; 
+                $fn  = isset($data[4]) ? trim($data[4]) : ''; 
+                $sap = isset($data[5]) ? trim($data[5]) : ''; 
+                $pl  = isset($data[6]) ? trim($data[6]) : ''; // Kolom Placement
+                $tp  = isset($data[7]) ? trim($data[7]) : ''; 
+                $sz  = isset($data[8]) ? trim($data[8]) : ''; 
+                $pt  = isset($data[9]) ? trim($data[9]) : ''; 
                 
                 if (!empty($sap)) {
-                    $s_v = mysqli_real_escape_string($conn, $sap);
-                    $f_v = mysqli_real_escape_string($conn, $fn);
-                    $t_v = mysqli_real_escape_string($conn, $t); 
-                    $z_v = mysqli_real_escape_string($conn, $sz);
-                    $p_v = mysqli_real_escape_string($conn, $p);
-                    mysqli_query($conn, "INSERT INTO bom_items (bom_id, sap_code, feeder_name, feeder_type, feeder_size, pitch) VALUES ('$bom_id', '$s_v', '$f_v', '$t_v', '$z_v', '$p_v')");
+                    $m_v   = mysqli_real_escape_string($conn, $m);
+                    $tb_v  = mysqli_real_escape_string($conn, $t_b);
+                    $sl_v  = mysqli_real_escape_string($conn, $sl);
+                    $fn_v  = mysqli_real_escape_string($conn, $fn);
+                    $sap_v = mysqli_real_escape_string($conn, $sap);
+                    $pl_v  = mysqli_real_escape_string($conn, $pl); // Escaping placement data
+                    $tp_v  = mysqli_real_escape_string($conn, $tp); 
+                    $sz_v  = mysqli_real_escape_string($conn, $sz);
+                    $pt_v  = mysqli_real_escape_string($conn, $pt);
+
+                    // Insert ke database
+                    mysqli_query($conn, "INSERT INTO bom_items (bom_id, machine, table_no, slot, feeder_name, sap_code, placement, feeder_type, feeder_size, pitch) 
+                                         VALUES ('$bom_id', '$m_v', '$tb_v', '$sl_v', '$fn_v', '$sap_v', '$pl_v', '$tp_v', '$sz_v', '$pt_v')");
                     $count++;
                 }
             }
@@ -87,14 +101,18 @@ if(isset($_POST['sync_master'])){
     
     $items = mysqli_query($conn, "SELECT * FROM bom_items WHERE bom_id = '$bom_id'");
     while($row = mysqli_fetch_assoc($items)){
+        $m   = mysqli_real_escape_string($conn, $row['machine']);
+        $tb  = mysqli_real_escape_string($conn, $row['table_no']);
+        $sl  = mysqli_real_escape_string($conn, $row['slot']);
         $sap = mysqli_real_escape_string($conn, $row['sap_code']);
+        $pl  = mysqli_real_escape_string($conn, $row['placement']); 
         $fn  = mysqli_real_escape_string($conn, $row['feeder_name']);
         $t   = mysqli_real_escape_string($conn, $row['feeder_type']);
         $sz  = mysqli_real_escape_string($conn, $row['feeder_size']);
         $p   = mysqli_real_escape_string($conn, $row['pitch']);
         
-        mysqli_query($conn, "INSERT INTO master_model (bom_id, sap_code, feeder_name, feeder_type, feeder_size, pitch) 
-                             VALUES ('$bom_id', '$sap', '$fn', '$t', '$sz', '$p')");
+        mysqli_query($conn, "INSERT INTO master_model (bom_id, machine, table_no, slot, sap_code, placement, feeder_name, feeder_type, feeder_size, pitch) 
+                             VALUES ('$bom_id', '$m', '$tb', '$sl', '$sap', '$pl', '$fn', '$t', '$sz', '$p')");
     }
     write_log($bom_id, "Data Master diperbarui: Mengunci $total_item item sebagai data referensi utama.");
     echo "<script>alert('Sukses! Master Data telah diperbarui.'); window.location='csv_mounter.php?manage=$bom_id';</script>";
@@ -137,7 +155,6 @@ if(isset($_POST['sync_master'])){
 
         body { background-color: var(--bg-body); color: var(--text-main); font-family: 'Inter', sans-serif; transition: all 0.3s ease; overflow-x: hidden; }
         
-        /* --- SIDEBAR (Sama dengan Dashboard) --- */
         #sidebar { width: 260px; height: 100vh; position: fixed; background: var(--bg-sidebar); display: flex; flex-direction: column; z-index: 1000; transition: 0.3s ease; border-right: 1px solid var(--nav-border); }
         .sidebar-header { padding: 30px 25px; text-align: center; border-bottom: 1px solid var(--nav-border); }
         .sidebar-menu { flex: 1; padding: 15px 0; overflow-y: auto; }
@@ -148,13 +165,11 @@ if(isset($_POST['sync_master'])){
         .sidebar-menu a.active { color: #fff; background: var(--accent); box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3); }
         .sidebar-footer { padding: 20px; border-top: 1px solid var(--nav-border); }
 
-        /* --- MAIN CONTENT (Sama dengan Dashboard) --- */
         .main-content { margin-left: 260px; width: calc(100% - 260px); min-height: 100vh; transition: 0.3s; }
         .top-nav { background: var(--bg-card); padding: 15px 30px; border-bottom: 1px solid var(--nav-border); position: sticky; top: 0; z-index: 999; }
         
         .card-custom { background-color: var(--bg-card); border: 1px solid var(--nav-border); border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
 
-        /* --- INPUT (Garis Dipertebal) --- */
         .form-label-custom { color: var(--text-main); font-weight: 700; font-size: 13px; margin-bottom: 8px; display: block; }
         .form-control-custom { 
             background-color: var(--bg-body); 
@@ -271,7 +286,18 @@ if(isset($_POST['sync_master'])){
                 <div class="table-responsive">
                     <table class="table table-custom align-middle mb-0">
                         <thead>
-                            <tr><th class="ps-4">No</th><th>Part Number</th><th>Feeder Name</th><th class="text-center">Type</th><th>Size</th><th>Pitch</th></tr>
+                            <tr>
+                                <th class="ps-4">No</th>
+                                <th>Machine</th>
+                                <th>Table</th>
+                                <th>Slot</th>
+                                <th>Feeder Name</th>
+                                <th>Part Number</th>
+                                <th>Placement</th> 
+                                <th class="text-center">Type</th>
+                                <th>Size</th>
+                                <th>Pitch</th>
+                            </tr>
                         </thead>
                         <tbody>
                             <?php $n=1; $items = mysqli_query($conn, "SELECT * FROM bom_items WHERE bom_id='$bom_id' ORDER BY id ASC");
@@ -279,13 +305,17 @@ if(isset($_POST['sync_master'])){
                                 while($it = mysqli_fetch_array($items)): ?>
                                 <tr>
                                     <td class="ps-4 fw-bold text-muted"><?= $n++ ?></td>
-                                    <td><span class="box-sap"><?= $it['sap_code'] ?></span></td>
+                                    <td class="fw-bold"><?= $it['machine'] ?></td>
+                                    <td class="fw-bold"><?= $it['table_no'] ?></td>
+                                    <td class="fw-bold text-primary"><?= $it['slot'] ?></td>
                                     <td class="fw-bold"><?= $it['feeder_name'] ?></td>
+                                    <td><span class="box-sap"><?= $it['sap_code'] ?></span></td>
+                                    <td class="small fw-bold text-muted" style="max-width: 250px; word-wrap: break-word;"><?= $it['placement'] ?></td> 
                                     <td class="text-center"><span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-pill"><?= strtoupper($it['feeder_type']) ?></span></td>
                                     <td class="fw-bold"><?= $it['feeder_size'] ?></td>
                                     <td class="fw-bold" style="color: var(--accent);"><?= $it['pitch'] ?></td>
                                 </tr>
-                            <?php endwhile; } else { echo "<tr><td colspan='6' class='text-center py-5 text-muted fw-bold'>Belum ada item terdaftar.</td></tr>"; } ?>
+                            <?php endwhile; } else { echo "<tr><td colspan='10' class='text-center py-5 text-muted fw-bold'>Belum ada item terdaftar.</td></tr>"; } ?>
                         </tbody>
                     </table>
                 </div>

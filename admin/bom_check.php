@@ -1,5 +1,6 @@
 <?php
 session_start();
+// Pastikan hanya admin yang bisa akses halaman verifikasi/sinkronisasi
 if (!isset($_SESSION['status']) || $_SESSION['role'] != "admin") {
     header("location:../login.php?pesan=belum_login");
     exit();
@@ -11,32 +12,61 @@ $user_login = $_SESSION['username'];
 $query_user = mysqli_query($conn, "SELECT * FROM users WHERE username = '$user_login'");
 $data_user = mysqli_fetch_assoc($query_user);
 
-// --- LOGIKA SINKRONISASI DATA ---
+// --- LOGIKA SINKRONISASI DATA (SCAN CYCLE 3 -> MASTER MODEL DETAIL) ---
 if (isset($_POST['sync_data'])) {
-    $bid = $_POST['bom_id'];
+    $model_name = mysqli_real_escape_string($conn, $_POST['model_name']);
     
-    // Ambil SAP unik dari history scan aktual yang belum diproses
-    $get_aktual = mysqli_query($conn, "SELECT DISTINCT sap_code FROM bom_check WHERE bom_id = '$bid' AND status_proses = 'pending'");
-    
-    mysqli_begin_transaction($conn);
-    try {
-        while ($row = mysqli_fetch_array($get_aktual)) {
-            $sap = $row['sap_code'];
-            // Update status di Master BOM List
-            mysqli_query($conn, "UPDATE bom_items SET status_verifikasi = 'verified' WHERE bom_id = '$bid' AND sap_code = '$sap'");
+    // 1. Ambil bom_id dari model_name terlebih dahulu untuk akurasi update detail
+    $q_bom = mysqli_query($conn, "SELECT id FROM bom_list WHERE model_name = '$model_name' LIMIT 1");
+    $bom_data = mysqli_fetch_assoc($q_bom);
+    $bom_id = $bom_data['id'] ?? null;
+
+    if ($bom_id) {
+        // 2. Ambil data unik hasil scan Cycle 3 yang is_diff=1 dan belum di-sync
+        $get_aktual = mysqli_query($conn, "SELECT sap_code, size, type, pitch 
+                                           FROM scanner_history 
+                                           WHERE model_name = '$model_name' 
+                                           AND cycle = '3' 
+                                           AND is_diff = 1 
+                                           AND status_sync = 0 
+                                           GROUP BY sap_code");
+        
+        mysqli_begin_transaction($conn);
+        try {
+            $count = 0;
+            while ($row = mysqli_fetch_array($get_aktual)) {
+                $sap = mysqli_real_escape_string($conn, $row['sap_code']);
+                $new_size = mysqli_real_escape_string($conn, $row['size']);
+                $new_type = mysqli_real_escape_string($conn, $row['type']);
+                $new_pitch = mysqli_real_escape_string($conn, $row['pitch']);
+
+                // UPDATE MASTER MODEL DETAIL (bom_items) berdasarkan bom_id dan sap_code
+                mysqli_query($conn, "UPDATE bom_items SET 
+                                     size = '$new_size', 
+                                     type = '$new_type', 
+                                     pitch = '$new_pitch' 
+                                     WHERE bom_id = '$bom_id' AND sap_code = '$sap'");
+                $count++;
+            }
+
+            // Tandai history untuk model & cycle 3 tersebut bahwa sudah sinkron
+            mysqli_query($conn, "UPDATE scanner_history SET status_sync = 1 
+                                 WHERE model_name = '$model_name' AND cycle = '3' AND is_diff = 1");
+
+            mysqli_commit($conn);
+            echo "<script>alert('Sync Berhasil! $count Item di Master Detail telah diperbarui.'); window.location='bom_check.php';</script>";
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            echo "<script>alert('Gagal Sinkronisasi: " . $e->getMessage() . "');</script>";
         }
-        mysqli_query($conn, "UPDATE bom_check SET status_proses = 'done' WHERE bom_id = '$bid'");
-        mysqli_commit($conn);
-        echo "<script>alert('Sync Berhasil!'); window.location='bom_check.php';</script>";
-    } catch (Exception $e) {
-        mysqli_rollback($conn);
-        echo "<script>alert('Gagal!');</script>";
+    } else {
+        echo "<script>alert('Gagal: ID Model tidak ditemukan di Master!');</script>";
     }
 }
 
-// Hitung Antrian untuk Notifikasi di Sidebar & Navbar
-$q_notif = mysqli_query($conn, "SELECT COUNT(id) as total FROM bom_check WHERE status_proses = 'pending'");
-$notif_count = mysqli_fetch_assoc($q_notif)['total'];
+// Hitung Antrian: Hanya muncul jika ada data Cycle 3 yang is_diff=1 dan belum di-sync
+$q_notif = mysqli_query($conn, "SELECT COUNT(DISTINCT model_name) as total FROM scanner_history WHERE cycle = '3' AND is_diff = 1 AND status_sync = 0");
+$notif_count = mysqli_fetch_assoc($q_notif)['total'] ?? 0;
 ?>
 
 <!DOCTYPE html>
@@ -82,7 +112,6 @@ $notif_count = mysqli_fetch_assoc($q_notif)['total'];
             overflow-x: hidden; 
         }
         
-        /* --- SIDEBAR REFINED (SYNCED) --- */
         #sidebar {
             width: 260px; height: 100vh; position: fixed;
             background: var(--bg-sidebar); display: flex; flex-direction: column; 
@@ -99,7 +128,6 @@ $notif_count = mysqli_fetch_assoc($q_notif)['total'];
         .sidebar-menu a.active { color: #fff; background: var(--accent); box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3); }
         .sidebar-footer { padding: 20px; border-top: 1px solid var(--nav-border); }
 
-        /* --- MAIN CONTENT (SYNCED) --- */
         .main-content { margin-left: 260px; width: calc(100% - 260px); min-height: 100vh; transition: 0.3s; }
         .top-nav { background: var(--bg-card); padding: 15px 30px; border-bottom: 1px solid var(--nav-border); position: sticky; top: 0; z-index: 999; }
         
@@ -152,7 +180,7 @@ $notif_count = mysqli_fetch_assoc($q_notif)['total'];
             <h6 class="mb-0 fw-bold text-muted text-uppercase" style="font-size: 11px; letter-spacing: 1px;">Verification Check</h6>
             <?php if($notif_count > 0): ?>
                 <span class="badge bg-danger rounded-pill px-3 py-2 fw-bold pulse-red" style="font-size: 10px;">
-                    <i class="fas fa-bell me-1"></i> <?= $notif_count ?> ANTRIAN
+                    <i class="fas fa-bell me-1"></i> <?= $notif_count ?> MODEL ANTRIAN (CYCLE 3)
                 </span>
             <?php endif; ?>
         </div>
@@ -162,10 +190,10 @@ $notif_count = mysqli_fetch_assoc($q_notif)['total'];
             </button>
             <div class="d-flex align-items-center gap-2 px-3 py-1 rounded-3" style="background: var(--bg-body); border: 1px solid var(--nav-border);">
                 <div class="text-end">
-                    <p class="mb-0 fw-bold" style="font-size: 12px;"><?= $data_user['nama_karyawan'] ?></p>
+                    <p class="mb-0 fw-bold" style="font-size: 12px;"><?= htmlspecialchars($data_user['nama_karyawan'] ?? 'Admin') ?></p>
                     <p class="mb-0 text-primary fw-bold" style="font-size: 9px; text-transform: uppercase;"><?= $_SESSION['role'] ?></p>
                 </div>
-                <img src="../assets/img/profile/<?= $data_user['foto'] ?: 'default.png' ?>" style="width: 35px; height: 35px; border-radius: 8px; object-fit: cover;">
+                <img src="../assets/img/profile/<?= !empty($data_user['foto']) ? $data_user['foto'] : 'default.png' ?>" style="width: 35px; height: 35px; border-radius: 8px; object-fit: cover;">
             </div>
         </div>
     </div>
@@ -174,8 +202,8 @@ $notif_count = mysqli_fetch_assoc($q_notif)['total'];
         <div class="card rounded-4 p-4 mb-4" style="border-left: 5px solid var(--accent) !important;">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h5 class="fw-bold mb-1">Verifikasi Data Aktual</h5>
-                    <p class="text-muted mb-0 small">Menunggu sinkronisasi dari data scan operator ke Master BOM.</p>
+                    <h5 class="fw-bold mb-1">Verifikasi Sinkronisasi Master</h5>
+                    <p class="text-muted mb-0 small">Menampilkan model dengan temuan berbeda pada **Cycle 3** untuk di-sync ke Master Model Detail.</p>
                 </div>
                 <button class="btn btn-light border btn-sm px-3 fw-bold" onclick="location.reload()" style="font-size: 12px;">
                     <i class="fas fa-sync-alt me-1"></i> REFRESH
@@ -191,46 +219,49 @@ $notif_count = mysqli_fetch_assoc($q_notif)['total'];
                             <th class="ps-4 py-3">Line</th>
                             <th>Model Name</th>
                             <th>Customer</th>
-                            <th class="text-center">Actual Scan</th>
+                            <th class="text-center">Total Diff (C3)</th>
                             <th class="text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php
-                        $q_antrian = mysqli_query($conn, "SELECT bl.id as bid, bl.nama_line, bl.model_name, bl.customer, COUNT(bc.id) as jml 
-                                                          FROM bom_check bc 
-                                                          JOIN bom_list bl ON bc.bom_id = bl.id 
-                                                          WHERE bc.status_proses = 'pending' 
-                                                          GROUP BY bc.bom_id");
+                        $q_antrian = mysqli_query($conn, "SELECT model_name, COUNT(DISTINCT sap_code) as jml 
+                                                          FROM scanner_history 
+                                                          WHERE cycle = '3' AND is_diff = 1 AND status_sync = 0 
+                                                          GROUP BY model_name");
                         
                         if(mysqli_num_rows($q_antrian) == 0): ?>
                             <tr>
                                 <td colspan="5" class="text-center py-5">
-                                    <i class="fas fa-clipboard-check fa-3x text-muted opacity-20 mb-3"></i>
-                                    <p class="text-muted small fw-bold">Belum ada antrian verifikasi saat ini.</p>
+                                    <i class="fas fa-check-circle fa-3x text-success opacity-20 mb-3"></i>
+                                    <p class="text-muted small fw-bold">Belum ada perbedaan data Cycle 3 yang perlu di-sync.</p>
                                 </td>
                             </tr>
                         <?php endif;
 
-                        while($row = mysqli_fetch_array($q_antrian)): ?>
+                        while($row = mysqli_fetch_array($q_antrian)): 
+                            $m_name = mysqli_real_escape_string($conn, $row['model_name']);
+                            $info_q = mysqli_query($conn, "SELECT nama_line, customer FROM bom_list WHERE model_name = '$m_name' LIMIT 1");
+                            $info = mysqli_fetch_assoc($info_q);
+                        ?>
                         <tr>
                             <td class="ps-4">
                                 <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-2 rounded-3 fw-bold">
-                                    <?= $row['nama_line'] ?>
+                                    <?= htmlspecialchars($info['nama_line'] ?? 'N/A') ?>
                                 </span>
                             </td>
-                            <td><div class="fw-bold"><?= $row['model_name'] ?></div></td>
-                            <td class="text-muted small"><?= $row['customer'] ?></td>
+                            <td><div class="fw-bold"><?= htmlspecialchars($row['model_name']) ?></div></td>
+                            <td class="text-muted small"><?= htmlspecialchars($info['customer'] ?? '-') ?></td>
                             <td class="text-center">
                                 <span class="badge bg-danger rounded-pill px-3 py-2 fw-bold" style="font-size: 10px;">
-                                    <?= $row['jml'] ?> ITEMS
+                                    <?= $row['jml'] ?> SAP BERBEDA
                                 </span>
                             </td>
                             <td class="text-center">
-                                <form action="" method="POST" onsubmit="return confirm('Update data ini ke Master?')">
-                                    <input type="hidden" name="bom_id" value="<?= $row['bid'] ?>">
+                                <form action="" method="POST" onsubmit="return confirm('Update Master Model Detail berdasarkan hasil scan Cycle 3?')">
+                                    <input type="hidden" name="model_name" value="<?= htmlspecialchars($row['model_name']) ?>">
                                     <button type="submit" name="sync_data" class="btn btn-dark btn-sm px-4 rounded-pill fw-bold shadow-sm" style="font-size: 11px;">
-                                        <i class="fas fa-save me-1"></i> UPDATE MASTER
+                                        <i class="fas fa-sync-alt me-1"></i> SYNC KE MASTER DETAIL
                                     </button>
                                 </form>
                             </td>
@@ -244,7 +275,6 @@ $notif_count = mysqli_fetch_assoc($q_notif)['total'];
 </div>
 
 <script>
-    // --- THEME LOGIC (SYNCED) ---
     const toggleBtn = document.getElementById('darkModeToggle');
     const themeIcon = document.getElementById('themeIcon');
     const body = document.body;

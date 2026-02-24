@@ -19,9 +19,13 @@ if (isset($_GET['bom_id'])) {
     $selected_bom = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM bom_list WHERE id = '$bom_id'"));
     
     if ($selected_bom) {
-        $items_query = mysqli_query($conn, "SELECT * FROM bom_items WHERE bom_id = '$bom_id'");
+        // Update query untuk mengambil sap_code dan placement
+        $items_query = mysqli_query($conn, "SELECT sap_code, placement FROM bom_items WHERE bom_id = '$bom_id'");
         while ($row = mysqli_fetch_assoc($items_query)) {
-            $items[] = $row['sap_code'];
+            $items[] = [
+                'sap_code' => $row['sap_code'],
+                'placement' => $row['placement']
+            ];
         }
     }
 }
@@ -31,10 +35,11 @@ if (isset($_GET['bom_id'])) {
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Scanner Check | SIIX</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <style>
         :root {
@@ -70,7 +75,6 @@ if (isset($_GET['bom_id'])) {
             overflow-x: hidden; 
         }
         
-        /* --- SIDEBAR REFINED (SYNCED) --- */
         #sidebar {
             width: 260px; height: 100vh; position: fixed;
             background: var(--bg-sidebar); display: flex; flex-direction: column; 
@@ -87,12 +91,10 @@ if (isset($_GET['bom_id'])) {
         .sidebar-menu a.active { color: #fff; background: var(--accent); box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3); }
         .sidebar-footer { padding: 20px; border-top: 1px solid var(--nav-border); }
 
-        /* --- MAIN CONTENT (SYNCED) --- */
         .main-content { margin-left: 260px; width: calc(100% - 260px); min-height: 100vh; transition: 0.3s; }
         .top-nav { background: var(--bg-card); padding: 15px 30px; border-bottom: 1px solid var(--nav-border); position: sticky; top: 0; z-index: 999; }
         .theme-toggle { cursor: pointer; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--bg-body); color: var(--text-main); border: 1px solid var(--nav-border); }
         
-        /* --- SCANNER SPECIFIC UI --- */
         .card-custom { background-color: var(--bg-card); border: 1px solid var(--nav-border); border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); overflow: hidden; }
         
         .status-banner { padding: 30px; text-align: center; border-bottom: 1px solid var(--nav-border); transition: 0.3s; }
@@ -112,7 +114,7 @@ if (isset($_GET['bom_id'])) {
 
         .info-board { background: #0f172a; color: #fff; border-radius: 20px; padding: 25px; border: 1px solid #334155; }
         .info-label { color: #64748b; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
-        .info-value { font-size: 1.2rem; font-weight: 800; color: #f8fafc; }
+        .info-value { font-size: 1.2rem; font-weight: 800; color: #f8fafc; transition: color 0.3s; }
 
         .comp-card { 
             background: var(--bg-card); border-radius: 12px; padding: 16px; margin-bottom: 12px; 
@@ -124,13 +126,22 @@ if (isset($_GET['bom_id'])) {
         
         .dot-check { width: 12px; height: 12px; border-radius: 50%; background: var(--bg-body); border: 1px solid var(--nav-border); }
         
-        /* SCANNER STATES */
         .state-1 { background: #fefce8 !important; color: #854d0e !important; } 
         .state-2 { background: #eff6ff !important; color: #1e40af !important; } 
         .state-3 { background: #f0fdf4 !important; color: #166534 !important; } 
         .bg-error { background: #fef2f2 !important; color: #991b1b !important; }
 
-        @media (max-width: 768px) { #sidebar { margin-left: -260px; } .main-content { margin-left: 0; width: 100%; } }
+        .val-cycle-1 { color: #facc15 !important; } 
+        .val-cycle-2 { color: #3b82f6 !important; } 
+        .val-cycle-3 { color: #22c55e !important; } 
+
+        @media (max-width: 768px) { 
+            #sidebar { margin-left: -260px; } 
+            .main-content { margin-left: 0; width: 100%; } 
+            .top-nav { padding: 10px 15px; }
+            .status-banner h1 { font-size: 24px !important; }
+            .large-input { font-size: 22px !important; padding: 15px !important; }
+        }
     </style>
 </head>
 <body data-bs-theme="light">
@@ -176,7 +187,7 @@ if (isset($_GET['bom_id'])) {
         </div>
     </div>
 
-    <div class="p-4">
+    <div class="p-3 p-md-4">
         <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 border-start border-4 border-primary" style="background: var(--bg-card);">
             <form action="" method="GET">
                 <select name="bom_id" class="form-select border-0 bg-transparent fw-bold text-main" onchange="this.form.submit()" style="height: 40px; cursor: pointer;">
@@ -207,9 +218,12 @@ if (isset($_GET['bom_id'])) {
                         <div class="step-item" id="step-PITCH"><i class="fas fa-arrows-h d-block mb-1"></i>PITCH</div>
                     </div>
 
-                    <div class="p-4 text-center">
-                        <span class="badge bg-dark rounded-pill mb-4 px-4 py-2" id="cycleIndicator" style="letter-spacing: 1px;">CYCLE 0/3</span>
-                        <input type="text" id="mainScanner" class="form-control large-input mb-4" placeholder="Select item from list..." disabled autocomplete="off">
+                    <div class="p-3 p-md-4 text-center">
+                        <span class="badge bg-dark rounded-pill mb-3 px-4 py-2" id="cycleIndicator" style="letter-spacing: 1px;">CYCLE 0/3</span>
+                        
+                        <div id="wrapper-manual">
+                            <input type="text" id="mainScanner" class="form-control large-input mb-4" placeholder="Select item from list..." disabled autocomplete="off">
+                        </div>
                         
                         <div class="info-board">
                             <div class="row g-4 text-center">
@@ -242,16 +256,18 @@ if (isset($_GET['bom_id'])) {
                     <h6 class="fw-bold text-muted mb-0"><i class="fas fa-list-ul me-2 text-primary"></i>CHECKLIST KOMPONEN</h6>
                     <span class="badge bg-primary bg-opacity-10 text-primary px-3 rounded-pill"><?= count($items) ?> TOTAL</span>
                 </div>
-                <div style="max-height: 600px; overflow-y: auto; padding-right: 10px;">
-                    <?php foreach($items as $sap_full): 
+                <div style="max-height: 500px; overflow-y: auto; padding-right: 5px;">
+                    <?php foreach($items as $item): 
+                        $sap_full = $item['sap_code'];
+                        $placement = $item['placement'];
                         $p_v = array_values(array_filter(explode('@', $sap_full)));
                         $pn_v = $p_v[0] ?? 'N/A';
                         $mid = md5($sap_full);
                     ?>
-                        <div class="comp-card" id="card-<?= $mid ?>" onclick="initiateScan('<?= $mid ?>', '<?= $pn_v ?>')">
+                        <div class="comp-card" id="card-<?= $mid ?>" onclick="initiateScan('<?= $mid ?>', '<?= $pn_v ?>', '<?= $placement ?>')">
                             <div>
                                 <div class="fw-bold text-main" style="font-size: 15px;"><?= $pn_v ?></div>
-                                <small class="text-muted" style="font-size: 10px; font-family: monospace;"><?= $sap_full ?></small>
+                                <small class="text-muted" style="font-size: 10px; font-family: monospace;">Placement: <?= $placement ?></small>
                             </div>
                             <div class="d-flex gap-2">
                                 <div class="dot-check" id="dot-1-<?= $mid ?>"></div>
@@ -273,10 +289,11 @@ if (isset($_GET['bom_id'])) {
 </div>
 
 <script>
-    /* --- LOGIC TETAP SAMA --- */
     let componentMemory = {}; 
+    let verificationHistory = {}; 
     let targetPn = "";
     let targetId = "";
+    let targetPlacement = ""; 
     let currentCycle = 1;
     let currentStep = 'PART';
 
@@ -288,19 +305,28 @@ if (isset($_GET['bom_id'])) {
     const cycleColors = ['#facc15', '#3b82f6', '#22c55e']; 
     const cycleBgs = ['#fef9c3', '#dbeafe', '#dcfce7'];
 
-    function initiateScan(id, pn) {
+    document.addEventListener('DOMContentLoaded', function() {
+        if(mainScanner) mainScanner.focus();
+    });
+
+    function initiateScan(id, pn, placement) {
         targetId = id;
         targetPn = pn;
+        targetPlacement = placement; 
         if (!componentMemory[id]) {
             componentMemory[id] = {
-                cycle: 1,
-                step: 'PART',
+                cycle: 1, step: 'PART',
                 data: { cll: "-", size: "-", type: "-", pitch: "-" }
             };
         }
         currentCycle = componentMemory[id].cycle;
         currentStep = componentMemory[id].step;
-        let memData = componentMemory[id].data;
+
+        if (currentCycle > 1 && verificationHistory[id]) {
+            updateInfoBoardDisplay(verificationHistory[id], 1); 
+        } else {
+            updateInfoBoardDisplay(componentMemory[id].data, currentCycle);
+        }
 
         document.querySelectorAll('.comp-card').forEach(c => {
             c.classList.remove('active');
@@ -318,15 +344,24 @@ if (isset($_GET['bom_id'])) {
         mainScanner.disabled = (currentCycle > 3);
         mainScanner.placeholder = (currentCycle > 3) ? "COMPLETED" : "Scan SAP Barcode...";
         mainScanner.value = "";
-        mainScanner.focus();
+        
+        setTimeout(() => mainScanner.focus(), 100);
 
         document.getElementById('dispPn').innerText = pn;
-        document.getElementById('dispCll').innerText = memData.cll;
-        document.getElementById('dispSize').innerText = memData.size;
-        document.getElementById('dispType').innerText = memData.type;
-        document.getElementById('dispPitch').innerText = memData.pitch;
         document.getElementById('cycleIndicator').innerText = currentCycle > 3 ? `COMPLETED` : `CHECK CYCLE ${currentCycle}/3`;
         updateStepUI(currentStep, currentStep === 'PART' ? 'SCAN SAP' : currentStep, 'RESUME PROGRESS', `state-${currentCycle}`);
+    }
+
+    function updateInfoBoardDisplay(data, cycle) {
+        const fields = ['cll', 'size', 'type', 'pitch'];
+        fields.forEach(f => {
+            const el = document.getElementById('disp' + f.charAt(0).toUpperCase() + f.slice(1));
+            el.innerText = data[f];
+            el.classList.remove('val-cycle-1', 'val-cycle-2', 'val-cycle-3', 'text-danger');
+            if (data[f] !== "-") {
+                el.classList.add(`val-cycle-${cycle}`);
+            }
+        });
     }
 
     mainScanner.addEventListener('keydown', function(e) {
@@ -344,14 +379,44 @@ if (isset($_GET['bom_id'])) {
         }
     }
 
-    function handleInput(val) {
+    async function validateAndConfirm(field, newVal) {
+        if (currentCycle > 1 && verificationHistory[targetId]) {
+            let refVal = verificationHistory[targetId][field];
+            if (newVal !== refVal) {
+                const el = document.getElementById('disp' + field.charAt(0).toUpperCase() + field.slice(1));
+                const oldText = el.innerText;
+                el.innerText = newVal;
+                el.classList.add('text-danger');
+
+                const result = await Swal.fire({
+                    title: 'DATA BERBEDA!',
+                    html: `Placement: <b class="text-primary">${targetPlacement}</b><br>Field: <b>${field.toUpperCase()}</b><br>Ref (C1): <b>${refVal}</b><br>Input Baru: <b class="text-danger">${newVal}</b>`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Ya, Ubah Data',
+                    cancelButtonText: 'Check Lagi',
+                    confirmButtonColor: '#f97316',
+                });
+
+                if (!result.isConfirmed) {
+                    el.innerText = oldText;
+                    el.classList.remove('text-danger');
+                    return false;
+                }
+                el.classList.remove('text-danger');
+                el.classList.add(`val-cycle-${currentCycle}`);
+            }
+        }
+        return true;
+    }
+
+    async function handleInput(val) {
         if (!val || !targetPn || currentCycle > 3) return;
         let mem = componentMemory[targetId];
 
         if (currentStep === 'PART') {
             const parts = val.split('@');
             const scannedPn = parts.length > 1 ? (parts[3] ? parts[3].trim() : "") : val;
-            
             if (scannedPn === targetPn) {
                 mem.step = 'CLL';
                 updateStepUI('CLL', 'SCAN CLL', 'VERIFIKASI CLL MATCH', `state-${currentCycle}`);
@@ -359,40 +424,56 @@ if (isset($_GET['bom_id'])) {
         } 
         else if (currentStep === 'CLL') {
             if (val === targetPn) {
-                mem.data.cll = val;
-                document.getElementById('dispCll').innerText = val;
-                mem.step = 'SIZE';
-                updateStepUI('SIZE', 'SIZE', 'INPUT FEEDER SIZE', `state-${currentCycle}`);
+                if(await validateAndConfirm('cll', val)) {
+                    mem.data.cll = val;
+                    const el = document.getElementById('dispCll');
+                    el.innerText = val;
+                    el.classList.add(`val-cycle-${currentCycle}`);
+                    mem.step = 'SIZE';
+                    updateStepUI('SIZE', 'SIZE', 'INPUT FEEDER SIZE', `state-${currentCycle}`);
+                }
             } else { showError("CLL TIDAK MATCH!"); }
         }
         else if (currentStep === 'SIZE') {
             if (!isNaN(val) && val !== "") {
-                mem.data.size = val;
-                document.getElementById('dispSize').innerText = val;
-                mem.step = 'TYPE';
-                updateStepUI('TYPE', 'TYPE', 'INPUT P / E (TYPE)', `state-${currentCycle}`);
+                if(await validateAndConfirm('size', val)) {
+                    mem.data.size = val;
+                    const el = document.getElementById('dispSize');
+                    el.innerText = val;
+                    el.classList.add(`val-cycle-${currentCycle}`);
+                    mem.step = 'TYPE';
+                    updateStepUI('TYPE', 'TYPE', 'INPUT P / E (TYPE)', `state-${currentCycle}`);
+                }
             } else { showError("HARUS ANGKA!"); }
         }
         else if (currentStep === 'TYPE') {
             const up = val.toUpperCase();
             if (up === "PAPER" || up === "P" || up === "EMBOSS" || up === "E") {
                 const shortType = (up === "PAPER" || up === "P") ? "P" : "E";
-                mem.data.type = shortType;
-                document.getElementById('dispType').innerText = shortType;
-                mem.step = 'PITCH';
-                updateStepUI('PITCH', 'PITCH', 'INPUT PITCH VALUE', `state-${currentCycle}`);
+                if(await validateAndConfirm('type', shortType)) {
+                    mem.data.type = shortType;
+                    const el = document.getElementById('dispType');
+                    el.innerText = shortType;
+                    el.classList.add(`val-cycle-${currentCycle}`);
+                    mem.step = 'PITCH';
+                    updateStepUI('PITCH', 'PITCH', 'INPUT PITCH VALUE', `state-${currentCycle}`);
+                }
             } else { showError("TYPE SALAH (P/E)!"); }
         }
         else if (currentStep === 'PITCH') {
             if (!isNaN(val) && val !== "") {
-                mem.data.pitch = val;
-                document.getElementById('dispPitch').innerText = val;
-                processCycleEnd();
+                if(await validateAndConfirm('pitch', val)) {
+                    mem.data.pitch = val;
+                    const el = document.getElementById('dispPitch');
+                    el.innerText = val;
+                    el.classList.add(`val-cycle-${currentCycle}`);
+                    processCycleEnd();
+                }
             } else { showError("HARUS ANGKA!"); }
         }
     }
 
-    function saveToHistory(cycle) {
+    function saveToHistory(cycle, diff) {
         let mem = componentMemory[targetId];
         const formData = new FormData();
         formData.append('action', 'simpan');
@@ -403,43 +484,68 @@ if (isset($_GET['bom_id'])) {
         formData.append('type', mem.data.type);
         formData.append('pitch', mem.data.pitch);
         formData.append('cycle', cycle);
+        formData.append('is_diff', diff); 
 
         fetch('simpan_history.php', { method: 'POST', body: formData })
-        .then(res => res.json())
-        .catch(err => console.error("Gagal simpan:", err));
-    }
-
-    function syncToBomCheck() {
-        const formData = new FormData();
-        formData.append('action', 'sync_to_bom_check');
-        formData.append('bom_id', "<?= $_GET['bom_id'] ?? '' ?>");
-        formData.append('sap_code', targetPn);
-        fetch('simpan_bom_check.php', { method: 'POST', body: formData })
-        .catch(err => console.error("Gagal sinkron BOM:", err));
+        .then(response => response.json())
+        .then(data => console.log("Save Success:", data))
+        .catch(error => console.error("Save Error:", error));
     }
 
     function processCycleEnd() {
-        saveToHistory(currentCycle);
-        document.getElementById(`dot-${currentCycle}-${targetId}`).style.background = cycleColors[currentCycle-1];
-        const card = document.getElementById('card-' + targetId);
-        card.style.backgroundColor = cycleBgs[currentCycle-1];
         let mem = componentMemory[targetId];
+        let diffDetected = 0;
+
+        if (currentCycle > 1 && verificationHistory[targetId]) {
+            const ref = verificationHistory[targetId];
+            if (mem.data.size !== ref.size || mem.data.type !== ref.type || mem.data.pitch !== ref.pitch) {
+                diffDetected = 1;
+            }
+        }
+
+        if (currentCycle === 1) { 
+            verificationHistory[targetId] = { ...mem.data }; 
+        }
+        
+        saveToHistory(currentCycle, diffDetected); 
+
+        const dot = document.getElementById(`dot-${currentCycle}-${targetId}`);
+        if(dot) dot.style.background = cycleColors[currentCycle-1];
 
         if (currentCycle < 3) {
             currentCycle++;
             mem.cycle = currentCycle;
             mem.step = 'PART';
-            mem.data = { cll: "-", size: "-", type: "-", pitch: "-" }; 
-            document.getElementById('cycleIndicator').innerText = `CHECK CYCLE ${currentCycle}/3`;
-            resetFieldTexts();
-            updateStepUI('PART', 'NEXT CYCLE', `MULAI CYCLE ${currentCycle}`, `state-${currentCycle}`);
+            currentStep = 'PART';
+
+            setTimeout(() => {
+                Swal.fire({
+                    title: `CYCLE ${currentCycle-1} OK!`,
+                    text: `Lanjut ke Cycle ${currentCycle}`,
+                    icon: 'success',
+                    timer: 1000,
+                    showConfirmButton: false
+                });
+                resetFieldTexts();
+                document.getElementById('cycleIndicator').innerText = `CHECK CYCLE ${currentCycle}/3`;
+                updateStepUI('PART', 'SCAN SAP', 'NEXT CYCLE STARTED', `state-${currentCycle}`);
+                mainScanner.value = "";
+                mainScanner.focus();
+            }, 500);
+
         } else {
-            syncToBomCheck();
-            mem.cycle = 4; 
-            card.classList.add('state-3');
-            document.getElementById('cycleIndicator').innerText = `COMPLETED`;
-            mainScanner.disabled = true;
-            alert("VERIFIKASI SELESAI");
+            mem.cycle = 4;
+            const card = document.getElementById('card-' + targetId);
+            card.style.backgroundColor = '#dcfce7';
+
+            Swal.fire({
+                title: 'ALL CYCLE COMPLETED',
+                text: diffDetected ? 'Data tersimpan dengan perbedaan. Cek menu Verification!' : 'Semua data match!',
+                icon: diffDetected ? 'warning' : 'success',
+                confirmButtonColor: '#f97316'
+            }).then(() => {
+                location.reload(); 
+            });
         }
     }
 
@@ -448,7 +554,7 @@ if (isset($_GET['bom_id'])) {
         statusMain.innerText = main;
         statusSub.innerText = sub;
         banner.className = `status-banner ${colorClass}`;
-        document.querySelectorAll('.step-item').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.step-progress .step-item').forEach(el => el.classList.remove('active'));
         const targetStep = document.getElementById(`step-${step}`);
         if(targetStep) targetStep.classList.add('active');
     }
@@ -466,33 +572,29 @@ if (isset($_GET['bom_id'])) {
 
     function resetFieldTexts() {
         ['dispCll', 'dispSize', 'dispType', 'dispPitch'].forEach(id => {
-            document.getElementById(id).innerText = "-";
+            const el = document.getElementById(id);
+            el.innerText = "-";
+            el.classList.remove('val-cycle-1', 'val-cycle-2', 'val-cycle-3', 'text-danger');
         });
     }
 
-    /* --- THEME TOGGLE LOGIC --- */
     const toggleBtn = document.getElementById('darkModeToggle');
     const themeIcon = document.getElementById('themeIcon');
     const body = document.body;
-
-    if (localStorage.getItem('theme') === 'dark') {
-        body.setAttribute('data-bs-theme', 'dark');
-        themeIcon.classList.replace('fa-moon', 'fa-sun');
-    }
-
+    if (localStorage.getItem('theme') === 'dark') { body.setAttribute('data-bs-theme', 'dark'); themeIcon.classList.replace('fa-moon', 'fa-sun'); }
     toggleBtn.addEventListener('click', () => {
         if (body.getAttribute('data-bs-theme') === 'light') {
-            body.setAttribute('data-bs-theme', 'dark');
-            themeIcon.classList.replace('fa-moon', 'fa-sun');
-            localStorage.setItem('theme', 'dark');
+            body.setAttribute('data-bs-theme', 'dark'); themeIcon.classList.replace('fa-moon', 'fa-sun'); localStorage.setItem('theme', 'dark');
         } else {
-            body.setAttribute('data-bs-theme', 'light');
-            themeIcon.classList.replace('fa-sun', 'fa-moon');
-            localStorage.setItem('theme', 'light');
+            body.setAttribute('data-bs-theme', 'light'); themeIcon.classList.replace('fa-sun', 'fa-moon'); localStorage.setItem('theme', 'light');
         }
     });
 
-    document.addEventListener('click', () => { if(!mainScanner.disabled) mainScanner.focus(); });
+    document.addEventListener('click', (e) => { 
+        if(!mainScanner.disabled && e.target.tagName !== 'SELECT' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') {
+            mainScanner.focus(); 
+        }
+    });
 </script>
 </body>
 </html>

@@ -21,6 +21,17 @@ if(isset($_POST['simpan'])){
     if($insert) header("location:master_line.php?pesan=tambah_berhasil");
 }
 
+// Logic Update
+if(isset($_POST['update'])){
+    $id = $_POST['id'];
+    $nama_line = mysqli_real_escape_string($conn, $_POST['nama_line']);
+    $customer  = mysqli_real_escape_string($conn, $_POST['customer']);
+    $model     = mysqli_real_escape_string($conn, $_POST['model']);
+    
+    $update = mysqli_query($conn, "UPDATE master_line SET nama_line='$nama_line', customer='$customer', model='$model' WHERE id='$id'");
+    if($update) header("location:master_line.php?pesan=update_berhasil");
+}
+
 if(isset($_GET['hapus'])){
     $id = $_GET['hapus'];
     mysqli_query($conn, "DELETE FROM master_line WHERE id='$id'");
@@ -36,6 +47,7 @@ if(isset($_GET['hapus'])){
     <title>Master Line | SIIX Scanner</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <style>
         :root {
@@ -106,6 +118,22 @@ if(isset($_GET['hapus'])){
     </style>
 </head>
 <body data-bs-theme="light">
+
+<?php if(isset($_GET['pesan'])): ?>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const pesan = urlParams.get('pesan');
+        if(pesan === 'tambah_berhasil'){
+            Swal.fire({ icon: 'success', title: 'Berhasil!', text: 'Data Line baru telah ditambahkan.', timer: 2000, showConfirmButton: false });
+        } else if(pesan === 'update_berhasil'){
+            Swal.fire({ icon: 'success', title: 'Terupdate!', text: 'Data Line berhasil diperbarui.', timer: 2000, showConfirmButton: false });
+        } else if(pesan === 'hapus_berhasil'){
+            Swal.fire({ icon: 'success', title: 'Dihapus!', text: 'Data Line telah dihapus dari sistem.', timer: 2000, showConfirmButton: false });
+        }
+        // Bersihkan URL dari parameter pesan tanpa reload
+        window.history.replaceState({}, document.title, window.location.pathname);
+    </script>
+<?php endif; ?>
 
 <nav id="sidebar">
     <div class="sidebar-header">
@@ -209,11 +237,49 @@ if(isset($_GET['hapus'])){
                             <td><span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-3 rounded-pill"><?= $row['customer'] ?></span></td>
                             <td class="fw-medium text-muted"><?= $row['model'] ?></td>
                             <td class="text-center">
-                                <a href="master_line.php?hapus=<?= $row['id'] ?>" class="btn btn-sm btn-light border" onclick="return confirm('Hapus data line ini?')">
-                                    <i class="fas fa-trash text-danger"></i>
-                                </a>
+                                <div class="d-flex justify-content-center gap-2">
+                                    <button type="button" class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#editModal<?= $row['id'] ?>">
+                                        <i class="fas fa-edit text-primary"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-light border" onclick="konfirmasiHapus(<?= $row['id'] ?>)">
+                                        <i class="fas fa-trash text-danger"></i>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
+
+                        <div class="modal fade" id="editModal<?= $row['id'] ?>" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content" style="background: var(--bg-card); border: 1px solid var(--nav-border); border-radius: 16px;">
+                                    <div class="modal-header border-bottom">
+                                        <h6 class="modal-title fw-bold"><i class="fas fa-edit me-2 text-primary"></i>Edit Data Line</h6>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <form action="" method="POST">
+                                        <div class="modal-body p-4">
+                                            <input type="hidden" name="id" value="<?= $row['id'] ?>">
+                                            <div class="mb-3">
+                                                <label class="small fw-bold mb-1">NAMA LINE</label>
+                                                <input type="text" name="nama_line" class="form-control" value="<?= $row['nama_line'] ?>" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="small fw-bold mb-1">CUSTOMER</label>
+                                                <input type="text" name="customer" class="form-control" value="<?= $row['customer'] ?>" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="small fw-bold mb-1">MODEL UNIT</label>
+                                                <input type="text" name="model" class="form-control" value="<?= $row['model'] ?>" required>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-top p-3">
+                                            <button type="button" class="btn btn-sm btn-light fw-bold" data-bs-dismiss="modal">BATAL</button>
+                                            <button type="submit" name="update" class="btn btn-sm btn-primary fw-bold" style="background: var(--accent); border:none;">SIMPAN PERUBAHAN</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
                         <?php 
                             } 
                         } else {
@@ -229,6 +295,24 @@ if(isset($_GET['hapus'])){
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    // --- KONFIRMASI HAPUS ---
+    function konfirmasiHapus(id) {
+        Swal.fire({
+            title: 'Apakah anda yakin?',
+            text: "Data Line ini akan dihapus secara permanen!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#f97316',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Ya, Hapus!',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = "master_line.php?hapus=" + id;
+            }
+        })
+    }
+
     // --- DARK MODE LOGIC ---
     const toggleBtn = document.getElementById('darkModeToggle');
     const themeIcon = document.getElementById('themeIcon');
